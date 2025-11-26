@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Martins Cloud Computing Base</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(6px); }
+    .bg-slate-850 { background-color: #020617; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 antialiased">
+  <header class="max-w-6xl mx-auto p-6 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center shadow-lg"> 
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="white">
+          <path d="M3 8a4 4 0 014-4h.5a5.5 5.5 0 015.5 5.5V11a2 2 0 01-2 2H9l-4 3V8z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold">Martins Cloud Computing Base</h1>
+        <p class="text-sm text-slate-400">Virtuelle Computer in Sekunden starten, skalieren und verwalten</p>
+      </div>
+    </div>
+    <nav class="flex items-center gap-4">
+      <button id="btnLogin" class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm">
+        Anmelden
+      </button>
+      <button id="btnAccount" class="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-sm">
+        Account
+      </button>
+      <button id="btnHelp" class="px-4 py-2 rounded-md border border-slate-700 text-sm">
+        Hilfe
+      </button>
+    </nav>
+  </header>
+
+  <main class="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left column: Übersicht + Aktivitäten -->
+    <section class="lg:col-span-2 space-y-6">
+      <!-- Hero / Willkommen -->
+      <div class="glass p-6 rounded-2xl shadow-md">
+        <div class="flex items-start gap-6">
+          <div class="flex-1">
+            <h2 class="text-3xl font-bold">Willkommen bei deiner Cloud 👋</h2>
+            <p class="text-slate-300 mt-2">
+              Willkommen, <span id="welcomeName" class="font-semibold">Martin</span>.
+              Hier kannst du virtuelle Computer starten, verwalten und deine Ressourcen im Blick behalten.
+            </p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm text-slate-400">Letzte Anmeldung</p>
+            <p class="font-medium" id="lastLogin">–</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zuletzt benutzte VMs -->
+      <div class="glass p-6 rounded-2xl shadow-md">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-semibold">Zuletzt genutzte virtuelle Computer</h3>
+          <input id="searchRecent" type="text" placeholder="Instanz suchen..." class="bg-transparent border border-slate-700 rounded-md px-3 py-1 text-sm w-52" />
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead class="text-slate-400 text-sm">
+              <tr>
+                <th class="pb-2">Name</th>
+                <th class="pb-2">Typ</th>
+                <th class="pb-2">Region</th>
+                <th class="pb-2">Status</th>
+                <th class="pb-2">Zuletzt genutzt</th>
+                <th class="pb-2">Aktion</th>
+              </tr>
+            </thead>
+            <tbody id="recentList" class="divide-y divide-slate-800">
+              <!-- JS befüllt Einträge -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Aktivitäten -->
+      <div class="glass p-6 rounded-2xl shadow-md">
+        <h3 class="text-xl font-semibold mb-4">Aktivitäten</h3>
+        <ul id="activityFeed" class="space-y-3 text-sm text-slate-300">
+          <!-- JS befüllt Aktivitäten -->
+        </ul>
+      </div>
+    </section>
+
+    <!-- Right column: Ressourcenübersicht -->
+    <aside class="space-y-6">
+      <div class="glass p-6 rounded-2xl shadow-md">
+        <h3 class="text-xl font-semibold mb-4">Ressourcenübersicht</h3>
+        <div class="mb-4">
+          <p class="text-sm text-slate-400">vCPUs gesamt: <span id="totalVcpus">32 vCPUs</span></p>
+          <div class="w-full bg-slate-800 rounded-full h-3 mt-2 overflow-hidden">
+            <div id="usedBar" class="h-3 rounded-full" style="width:0%"></div>
+          </div>
+          <div class="flex items-center justify-between text-sm mt-2 text-slate-400">
+            <span id="usedVcpus">0 vCPUs belegt | 0 GB RAM | 0 GB Disk</span>
+            <span id="freeVcpus">32 vCPUs frei</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3">
+          <div class="flex items-center justify-between bg-slate-850 p-3 rounded-md">
+            <div>
+              <p class="text-sm text-slate-400">Allgemeine VMs</p>
+              <p class="font-medium" id="cardGeneral">0 vCPUs · 0 GB RAM</p>
+            </div>
+            <div class="text-sm text-slate-400" id="cardGeneralPct">0%</div>
+          </div>
+          <div class="flex items-center justify-between bg-slate-850 p-3 rounded-md">
+            <div>
+              <p class="text-sm text-slate-400">Arbeitsspeicher genutzt</p>
+              <p class="font-medium" id="cardCompute">0 GB von 32 GB</p>
+            </div>
+            <div class="text-sm text-slate-400" id="cardComputePct">0%</div>
+          </div>
+          <div class="flex items-center justify-between bg-slate-850 p-3 rounded-md">
+            <div>
+              <p class="text-sm text-slate-400">Festplatte genutzt</p>
+              <p class="font-medium" id="cardMemory">0 GB von 100 GB</p>
+            </div>
+            <div class="text-sm text-slate-400" id="cardMemoryPct">0%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass p-6 rounded-2xl shadow-md">
+        <h3 class="text-xl font-semibold mb-4">Schnellaktionen</h3>
+        <div class="flex flex-col gap-3">
+          <button class="px-4 py-2 rounded-md bg-indigo-600" id="btnNewVm">Neue VM erstellen</button>
+          <button class="px-4 py-2 rounded-md border border-slate-700" id="btnTemplate">Vorlage wählen</button>
+          <button class="px-4 py-2 rounded-md bg-emerald-600" id="btnStartVm">VM starten</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Overlays / Popups -->
+  <div id="overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-40">
+    <div id="modal" class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full mx-4 p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="modalTitle" class="text-xl font-semibold">Titel</h3>
+        <button id="modalClose" class="text-slate-400 hover:text-slate-100 text-xl leading-none">×</button>
+      </div>
+      <div id="modalBody" class="space-y-3 text-sm">
+        <!-- Inhalt wird per JS gesetzt -->
+      </div>
+      <div class="flex justify-end gap-3 mt-5">
+        <button id="modalCancel" class="px-4 py-2 rounded-md border border-slate-700 text-sm">Abbrechen</button>
+        <button id="modalSubmit" class="px-4 py-2 rounded-md bg-indigo-600 text-sm">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="max-w-6xl mx-auto p-6 text-center text-slate-500 text-sm">
+    © 2025 Martins Cloud Computing Base — Sicherer Speicher | Datenschutz | Impressum
+  </footer>
+
+  <script>
+    // --- Ressourcen-Modell ---
+    const capacity = {
+      maxVcpus: 32,
+      maxRamGb: 32,
+      maxDiskGb: 100,
+      usedVcpus: 0,
+      usedRamGb: 0,
+      usedDiskGb: 0,
+      generalVcpus: 0,
+      generalRamGb: 0,
+      ramUsedGb: 0,
+      diskUsedGb: 0,
+    };
+
+    // Startzustand: keine VMs, keine Aktivitäten
+    const recent = [];
+    const activities = [];
+
+    // Letzte Anmeldung (Demo – kannst du später vom Backend setzen)
+    document.getElementById('lastLogin').textContent = '–';
+
+    // --- Ressourcen-Übersicht ---
+    function updateCapacityBar(){
+      const usedPct = capacity.maxVcpus === 0 ? 0 : Math.min(100, Math.round((capacity.usedVcpus / capacity.maxVcpus) * 100));
+      const usedBar = document.getElementById('usedBar');
+      usedBar.style.width = usedPct + '%';
+      usedBar.className = usedBar.className.split(' ').filter(c => !c.startsWith('bg-gradient')).join(' ');
+      usedBar.className += ' bg-gradient-to-r from-pink-500 to-indigo-500';
+
+      const total = capacity.maxVcpus || 1;
+      const ramPct = Math.round((capacity.ramUsedGb / (capacity.maxRamGb || 1)) * 100);
+      const diskPct = Math.round((capacity.diskUsedGb / (capacity.maxDiskGb || 1)) * 100);
+
+      document.getElementById('cardGeneral').textContent =
+        `${capacity.generalVcpus} vCPUs · ${capacity.generalRamGb} GB RAM`;
+      document.getElementById('cardCompute').textContent =
+        `${capacity.ramUsedGb} GB von ${capacity.maxRamGb} GB`;
+      document.getElementById('cardMemory').textContent =
+        `${capacity.diskUsedGb} GB von ${capacity.maxDiskGb} GB`;
+
+      document.getElementById('cardGeneralPct').textContent =
+        Math.round((capacity.generalVcpus / total) * 100) + '%';
+      document.getElementById('cardComputePct').textContent = ramPct + '%';
+      document.getElementById('cardMemoryPct').textContent = diskPct + '%';
+
+      document.getElementById('usedVcpus').textContent =
+        capacity.usedVcpus + ' vCPUs belegt | ' +
+        capacity.usedRamGb + ' GB RAM | ' +
+        capacity.usedDiskGb + ' GB Disk';
+      document.getElementById('freeVcpus').textContent =
+        (capacity.maxVcpus - capacity.usedVcpus) + ' vCPUs frei';
+    }
+
+    updateCapacityBar();
+
+    // --- Zuletzt genutzte VMs Tabelle ---
+    const recentList = document.getElementById('recentList');
+    function renderRecent(filter = ''){
+      recentList.innerHTML = '';
+      const f = filter.toLowerCase();
+      const data = (recent || []).filter(r => r.name.toLowerCase().includes(f));
+
+      if (data.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="py-3 text-sm text-slate-500" colspan="6">
+                          Noch keine VMs genutzt.
+                        </td>`;
+        recentList.appendChild(tr);
+        return;
+      }
+
+      data.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-3">${r.name}</td>
+          <td class="py-3 text-slate-400 text-sm">${r.type}</td>
+          <td class="py-3 text-slate-400 text-sm">${r.region}</td>
+          <td class="py-3 text-slate-400 text-sm">${r.status}</td>
+          <td class="py-3 text-slate-400 text-sm">${r.last}</td>
+          <td class="py-3">
+            <button class="px-3 py-1 rounded-md border border-slate-700 text-sm btn-open-vm" data-name="${r.name}">
+              Öffnen
+            </button>
+          </td>`;
+        recentList.appendChild(tr);
+      });
+
+      document.querySelectorAll('.btn-open-vm').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const name = btn.getAttribute('data-name');
+          openModal('VM öffnen', createVmDetailsForm(name));
+        });
+      });
+    }
+    renderRecent();
+
+    document.getElementById('searchRecent').addEventListener('input', (e)=>{
+      renderRecent(e.target.value);
+    });
+
+    // --- Aktivitäten Liste ---
+    const activityFeed = document.getElementById('activityFeed');
+    function renderActivities(){
+      activityFeed.innerHTML = '';
+      if (activities.length === 0) {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="text-sm text-slate-500">Noch keine Aktivitäten vorhanden.</span>`;
+        activityFeed.appendChild(li);
+        return;
+      }
+      activities.forEach(a =>{
+        const li = document.createElement('li');
+        li.innerHTML =
+          `<div class="flex items-center justify-between">
+            <div class="text-sm">${a.text}</div>
+            <div class="text-xs text-slate-500 ml-4">${a.time}</div>
+          </div>`;
+        activityFeed.appendChild(li);
+      });
+    }
+    renderActivities();
+
+    // --- Modal / Popup Logik ---
+    const overlay = document.getElementById('overlay');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalClose = document.getElementById('modalClose');
+    const modalCancel = document.getElementById('modalCancel');
+    const modalSubmit = document.getElementById('modalSubmit');
+
+    let currentSubmitHandler = null;
+
+    function openModal(title, bodyContent, onSubmit){
+      modalTitle.textContent = title;
+      modalBody.innerHTML = '';
+      if (typeof bodyContent === 'string') {
+        modalBody.innerHTML = bodyContent;
+      } else if (bodyContent) {
+        modalBody.appendChild(bodyContent);
+      }
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+      currentSubmitHandler = onSubmit || null;
+    }
+
+    function closeModal(){
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      currentSubmitHandler = null;
+    }
+
+    modalClose.addEventListener('click', closeModal);
+    modalCancel.addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal();
+    });
+
+    modalSubmit.addEventListener('click', () => {
+      if (currentSubmitHandler) {
+        currentSubmitHandler();
+      } else {
+        closeModal();
+      }
+    });
+
+    // --- Form-Builder ---
+    function createLoginForm(){
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <label class="block text-sm">Alias
+          <input id="loginAlias" type="text"
+            class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2"
+            placeholder="z.B. m.muster" />
+        </label>
+        <label class="block text-sm mt-2">Passwort
+          <input id="loginPassword" type="password"
+            class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2"
+            placeholder="••••••••" />
+        </label>
+      `;
+      return div;
+    }
+
+    function createAccountForm(){
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <label class="block text-sm">Name
+          <input id="accName" type="text" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" placeholder="Ihr Name" />
+        </label>
+        <label class="block text-sm">E-Mail
+          <input id="accEmail" type="email" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" placeholder="name@example.com" />
+        </label>
+        <label class="block text-sm">Unternehmen
+          <input id="accCompany" type="text" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" placeholder="Firma GmbH" />
+        </label>
+      `;
+      return div;
+    }
+
+    function createHelpForm(){
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <p class="text-slate-300 text-sm mb-2">Beschreiben Sie kurz Ihre Frage oder Ihr Problem. Unser Support meldet sich per E-Mail.</p>
+        <label class="block text-sm">Betreff
+          <input id="helpSubject" type="text" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" placeholder="z.B. Probleme beim Starten einer VM" />
+        </label>
+        <label class="block text-sm">Nachricht
+          <textarea id="helpMessage" rows="4" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" placeholder="Ihre Nachricht..."></textarea>
+        </label>
+      `;
+      return div;
+    }
+
+    function createNewVmForm(){
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <label class="block text-sm">Name der VM
+          <input id="vmName" type="text" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" placeholder="z.B. web-server-01" />
+        </label>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+          <label class="block text-sm">Betriebssystem
+            <select id="vmOs" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+              <option value="ubuntu-22">Ubuntu 22.04 LTS</option>
+              <option value="debian-12">Debian 12</option>
+              <option value="rocky-9">Rocky Linux 9</option>
+              <option value="centos-stream-9">CentOS Stream 9</option>
+              <option value="opensuse-leap-15">openSUSE Leap 15</option>
+            </select>
+          </label>
+          <label class="block text-sm">vCPUs
+            <input id="vmCpu" type="number" min="1" max="32" value="4" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" />
+          </label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+          <label class="block text-sm">Arbeitsspeicher (GB)
+            <input id="vmRam" type="number" min="1" max="32" value="16" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" />
+          </label>
+          <label class="block text-sm">Festplatte (GB)
+            <input id="vmDisk" type="number" min="10" max="100" value="100" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" />
+          </label>
+        </div>
+      `;
+      return div;
+    }
+
+    function createTemplateForm(){
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <p class="text-slate-300 text-sm mb-2">
+          Wählen Sie eine Linux-Vorlage mit solider Standard-Hardware (4 vCPU, 16 GB RAM, 100 GB SSD).
+        </p>
+        <label class="block text-sm">Linux-Version
+          <select id="tplLinux" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2">
+            <option value="ubuntu-22">Ubuntu 22.04 LTS</option>
+            <option value="ubuntu-24">Ubuntu 24.04 LTS</option>
+            <option value="debian-12">Debian 12 "Bookworm"</option>
+            <option value="rocky-9">Rocky Linux 9</option>
+            <option value="alma-9">AlmaLinux 9</option>
+            <option value="sles-15">SUSE Linux Enterprise 15</option>
+          </select>
+        </label>
+      `;
+      return div;
+    }
+
+    function createStartVmForm(){
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <p class="text-slate-300 text-sm mb-2">
+          Geben Sie den Namen der VM an, wie sie in Hyper-V konfiguriert ist. Die VM wird dann gestartet.
+        </p>
+        <label class="block text-sm">VM-Name in Hyper-V
+          <input id="startVmName" type="text" class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2" placeholder="z.B. HV-WEB01" />
+        </label>
+      `;
+      return div;
+    }
+
+    function createVmDetailsForm(name){
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <p class="text-slate-300 text-sm mb-2">
+          Details für <span class="font-semibold">${name}</span>.
+        </p>
+        <label class="block text-sm">Notiz zur VM
+          <textarea id="vmNote" rows="3"
+            class="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2"
+            placeholder="z.B. welche Services hier laufen..."></textarea>
+        </label>
+      `;
+      return div;
+    }
+
+    // --- Buttons mit Popups verbinden ---
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      openModal('Anmeldung', createLoginForm(), () => {
+        const alias = document.getElementById('loginAlias').value;
+        const pwd = document.getElementById('loginPassword').value;
+        console.log('Login-Daten (hier an Backend senden)', { alias, pwd });
+        if (alias) {
+          document.getElementById('welcomeName').textContent = alias;
+        }
+        closeModal();
+      });
+    });
+
+    document.getElementById('btnAccount').addEventListener('click', () => {
+      openModal('Account-Einstellungen', createAccountForm(), () => {
+        const name = document.getElementById('accName').value;
+        const email = document.getElementById('accEmail').value;
+        const company = document.getElementById('accCompany').value;
+        console.log('Account speichern', { name, email, company });
+        closeModal();
+      });
+    });
+
+    document.getElementById('btnHelp').addEventListener('click', () => {
+      openModal('Hilfe & Support', createHelpForm(), () => {
+        const subject = document.getElementById('helpSubject').value;
+        const msg = document.getElementById('helpMessage').value;
+        console.log('Help senden', { subject, msg });
+        closeModal();
+      });
+    });
+
+    // Schnellaktionen-Buttons
+    function bindQuickActions(){
+      const btnNewVm = document.getElementById('btnNewVm');
+      const btnTemplate = document.getElementById('btnTemplate');
+      const btnStartVm = document.getElementById('btnStartVm');
+
+      btnNewVm.addEventListener('click', () => {
+        openModal('Neue VM erstellen', createNewVmForm(), () => {
+          const payload = {
+            name: document.getElementById('vmName').value,
+            os: document.getElementById('vmOs').value,
+            cpu: Number(document.getElementById('vmCpu').value),
+            ramGb: Number(document.getElementById('vmRam').value),
+            diskGb: Number(document.getElementById('vmDisk').value),
+          };
+          console.log('Neue VM anlegen (API-Call hier einfügen)', payload);
+
+          capacity.usedVcpus = Math.min(capacity.maxVcpus, capacity.usedVcpus + payload.cpu);
+          capacity.usedRamGb = Math.min(capacity.maxRamGb, capacity.usedRamGb + payload.ramGb);
+          capacity.usedDiskGb = Math.min(capacity.maxDiskGb, capacity.usedDiskGb + payload.diskGb);
+          capacity.ramUsedGb = capacity.usedRamGb;
+          capacity.diskUsedGb = capacity.usedDiskGb;
+
+          // einfache Zuordnung für "Allgemeine VMs"
+          if (payload.cpu <= 4 && payload.ramGb <= 16) {
+            capacity.generalVcpus += payload.cpu;
+            capacity.generalRamGb += payload.ramGb;
+          }
+
+          updateCapacityBar();
+          closeModal();
+        });
+      });
+
+      btnTemplate.addEventListener('click', () => {
+        openModal('Linux-Vorlage wählen', createTemplateForm(), () => {
+          const tpl = document.getElementById('tplLinux').value;
+          const payload = {
+            template: tpl,
+            cpu: 4,
+            ramGb: 16,
+            diskGb: 100,
+          };
+          console.log('Vorlage gewählt (API-Call hier einfügen)', payload);
+
+          capacity.usedVcpus = Math.min(capacity.maxVcpus, capacity.usedVcpus + payload.cpu);
+          capacity.usedRamGb = Math.min(capacity.maxRamGb, capacity.usedRamGb + payload.ramGb);
+          capacity.usedDiskGb = Math.min(capacity.maxDiskGb, capacity.usedDiskGb + payload.diskGb);
+          capacity.ramUsedGb = capacity.usedRamGb;
+          capacity.diskUsedGb = capacity.usedDiskGb;
+
+          capacity.generalVcpus += payload.cpu;
+          capacity.generalRamGb += payload.ramGb;
+
+          updateCapacityBar();
+          closeModal();
+        });
+      });
+
+      btnStartVm.addEventListener('click', () => {
+        openModal('VM in Hyper-V starten', createStartVmForm(), () => {
+          const vmName = document.getElementById('startVmName').value;
+          console.log('Hyper-V Start anstoßen (Backend muss Hyper-V ansprechen)', { vmName });
+          // Beispiel später:
+          // fetch('/api/hyperv/start', {
+          //   method: 'POST',
+          //   headers: { 'Content-Type': 'application/json' },
+          //   body: JSON.stringify({ name: vmName })
+          // });
+          closeModal();
+        });
+      });
+    }
+
+    bindQuickActions();
+  </script>
+</body>
+</html>
