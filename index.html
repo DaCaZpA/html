@@ -136,6 +136,8 @@
           <button class="px-4 py-2 rounded-md bg-indigo-600" id="btnNewVm">Neue VM erstellen</button>
           <button class="px-4 py-2 rounded-md border border-slate-700" id="btnTemplate">Vorlage wählen</button>
           <button class="px-4 py-2 rounded-md bg-emerald-600" id="btnStartVm">VM starten</button>
+          <button class="px-4 py-2 rounded-md bg-red-600" id="btnStopVm">VM stoppen</button>
+          <button class="px-4 py-2 rounded-md border border-slate-700" id="btnVmStatus">VM Status</button>
         </div>
       </div>
     </aside>
@@ -327,6 +329,25 @@
         closeModal();
       }
     });
+
+    // --- Helper: call VM API ---
+    async function callVm(action, name){
+      try {
+        const url = action === 'status' ? `/vm/status?name=${encodeURIComponent(name)}` : `/vm/${action}`;
+        const opts = action === 'status' ? { method: 'GET' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) };
+        const res = await fetch(url, opts);
+        const data = await res.json();
+        const time = new Date().toLocaleString();
+        activities.unshift({ text: `${action.toUpperCase()} ${name} -> ${data.success ? 'OK' : 'FEHLER'}`, time });
+        renderActivities();
+        return data;
+      } catch (err) {
+        const time = new Date().toLocaleString();
+        activities.unshift({ text: `${action.toUpperCase()} ${name} -> ERROR`, time });
+        renderActivities();
+        return { success: false, error: err.toString() };
+      }
+    }
 
     // --- Form-Builder ---
     function createLoginForm(){
@@ -550,14 +571,30 @@
       btnStartVm.addEventListener('click', () => {
         openModal('VM in Hyper-V starten', createStartVmForm(), () => {
           const vmName = document.getElementById('startVmName').value;
-          console.log('Hyper-V Start anstoßen (Backend muss Hyper-V ansprechen)', { vmName });
-          // Beispiel später:
-          // fetch('/api/hyperv/start', {
-          //   method: 'POST',
-          //   headers: { 'Content-Type': 'application/json' },
-          //   body: JSON.stringify({ name: vmName })
-          // });
-          closeModal();
+          callVm('start', vmName).then(d => {
+            // kurze Rückmeldung im Modal
+            modalBody.innerHTML = `<pre class="text-sm text-slate-300">${JSON.stringify(d, null, 2)}</pre>`;
+            setTimeout(closeModal, 1200);
+          });
+        });
+      });
+
+      btnStopVm.addEventListener('click', () => {
+        openModal('VM in Hyper-V stoppen', createStartVmForm(), () => {
+          const vmName = document.getElementById('startVmName').value;
+          callVm('stop', vmName).then(d => {
+            modalBody.innerHTML = `<pre class="text-sm text-slate-300">${JSON.stringify(d, null, 2)}</pre>`;
+            setTimeout(closeModal, 1200);
+          });
+        });
+      });
+
+      btnVmStatus.addEventListener('click', () => {
+        openModal('VM Status abfragen', createStartVmForm(), () => {
+          const vmName = document.getElementById('startVmName').value;
+          callVm('status', vmName).then(d => {
+            modalBody.innerHTML = `<pre class="text-sm text-slate-300">${JSON.stringify(d, null, 2)}</pre>`;
+          });
         });
       });
     }
