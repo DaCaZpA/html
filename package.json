@@ -20,6 +20,7 @@
   "homepage": "https://github.com/DaCaZpA/html#readme",
   "dependencies": {
     "express": "^5.1.0",
-    "pg": "^8.10.0"
+    "pg": "^8.10.0",
+    "dotenv": "^16.1.4"
   }
 }

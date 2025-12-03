@@ -2,6 +2,7 @@ const express = require('express');
 const { exec, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+require('dotenv').config();
 const { Client } = require('pg');
 
 const app = express();
@@ -49,6 +50,21 @@ function determineVbox(){
 }
 
 const VBOX = determineVbox();
+
+// --- Security: simple Basic Auth middleware ---
+const ADMIN_USER = process.env.ADMIN_USER || null;
+const ADMIN_PASS = process.env.ADMIN_PASS || null;
+
+function requireAdmin(req, res, next){
+	// If no admin credentials configured, allow (development convenience)
+	if (!ADMIN_USER || !ADMIN_PASS) return next();
+	const auth = req.headers['authorization'];
+	if (!auth || !auth.startsWith('Basic ')) return res.status(401).set('WWW-Authenticate','Basic realm="Restricted"').json({ success:false, error: 'Authentication required' });
+	const cred = Buffer.from(auth.split(' ')[1], 'base64').toString('utf8');
+	const [u,p] = cred.split(':');
+	if (u === ADMIN_USER && p === ADMIN_PASS) return next();
+	return res.status(403).json({ success:false, error: 'Forbidden' });
+}
 
 // Postgres connection defaults (used by /db endpoints)
 function getPgConfig(){
@@ -188,7 +204,7 @@ app.get('/vm/status', (req, res) => {
 });
 
 // --- Database control endpoints (Postgres via docker-compose.db.yml) ---
-app.post('/db/start', (req, res) => {
+app.post('/db/start', requireAdmin, (req, res) => {
 	const cmd = `docker compose -f docker-compose.db.yml up -d`;
 	exec(cmd, { windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
 		if (error) return res.status(500).json({ success:false, error: error.message, stdout, stderr });
@@ -196,7 +212,7 @@ app.post('/db/start', (req, res) => {
 	});
 });
 
-app.post('/db/stop', (req, res) => {
+app.post('/db/stop', requireAdmin, (req, res) => {
 	const cmd = `docker compose -f docker-compose.db.yml down`;
 	exec(cmd, { windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
 		if (error) return res.status(500).json({ success:false, error: error.message, stdout, stderr });
@@ -212,7 +228,7 @@ app.get('/db/status', async (req, res) => {
 });
 
 // Initialize DB schema
-app.post('/db/init', async (req, res) => {
+app.post('/db/init', requireAdmin, async (req, res) => {
 	try {
 		await initDb();
 		res.json({ success:true });
@@ -227,7 +243,7 @@ app.get('/db/entries', async (req, res) => {
 	} catch (e) { res.status(500).json({ success:false, error: e.message }); }
 });
 
-app.post('/db/entries', async (req, res) => {
+app.post('/db/entries', requireAdmin, async (req, res) => {
 	const { title, body } = req.body || {};
 	if (!title) return res.status(400).json({ success:false, error: 'Missing title' });
 	try {
@@ -236,7 +252,7 @@ app.post('/db/entries', async (req, res) => {
 	} catch (e) { res.status(500).json({ success:false, error: e.message }); }
 });
 
-app.delete('/db/entries/:id', async (req, res) => {
+app.delete('/db/entries/:id', requireAdmin, async (req, res) => {
 	const id = Number(req.params.id);
 	if (!id) return res.status(400).json({ success:false, error: 'Invalid id' });
 	try {

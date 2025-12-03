@@ -160,6 +160,38 @@
     </aside>
   </main>
 
+  <!-- Database Panel -->
+  <div class="max-w-6xl mx-auto p-6">
+    <div class="glass p-6 rounded-2xl shadow-md">
+      <h3 class="text-xl font-semibold mb-4">Datenbank (Postgres)</h3>
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+          <p class="text-sm text-slate-400 mb-2">Steuere den lokalen Postgres-Container (Adminer auf Port 8080).</p>
+          <div class="flex gap-2 mb-3">
+            <button id="btnDbAuth" class="px-3 py-1 rounded-md border border-slate-700 text-sm">Anmeldedaten setzen</button>
+            <button id="btnDbStart" class="px-3 py-1 rounded-md bg-emerald-600 text-sm">DB Start</button>
+            <button id="btnDbStop" class="px-3 py-1 rounded-md bg-red-600 text-sm">DB Stop</button>
+            <button id="btnDbInit" class="px-3 py-1 rounded-md border border-slate-700 text-sm">DB Init</button>
+            <button id="btnDbStatus" class="px-3 py-1 rounded-md border border-slate-700 text-sm">Status</button>
+          </div>
+          <div id="dbStatusText" class="text-sm text-slate-300"></div>
+        </div>
+        <div class="w-full md:w-1/2">
+          <h4 class="text-sm font-semibold mb-2">Einträge</h4>
+          <div class="space-y-2 mb-3">
+            <input id="entryTitle" placeholder="Titel" class="w-full rounded bg-slate-800 border border-slate-700 px-3 py-2 text-sm" />
+            <textarea id="entryBody" rows="3" placeholder="Inhalt" class="w-full rounded bg-slate-800 border border-slate-700 px-3 py-2 text-sm"></textarea>
+            <div class="flex gap-2">
+              <button id="btnCreateEntry" class="px-3 py-1 rounded-md bg-indigo-600 text-sm">Anlegen</button>
+              <button id="btnRefreshEntries" class="px-3 py-1 rounded-md border border-slate-700 text-sm">Aktualisieren</button>
+            </div>
+          </div>
+          <div id="entryList" class="space-y-2 text-sm text-slate-200 max-h-48 overflow-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Overlays / Popups -->
   <div id="overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-40">
     <div id="modal" class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full mx-4 p-6 shadow-2xl">
@@ -687,6 +719,76 @@
     bindQuickActions();
 
     
+    // --- Database helpers (frontend) ---
+    function getAuthHeaders(){
+      const creds = sessionStorage.getItem('dbCreds');
+      if (!creds) return {};
+      return { 'Authorization': 'Basic ' + creds };
+    }
+
+    document.getElementById('btnDbAuth').addEventListener('click', ()=>{
+      const user = prompt('Admin-Benutzername (leer = keine Auth)');
+      if (!user){ sessionStorage.removeItem('dbCreds'); alert('Anmeldedaten entfernt (Development mode)'); return; }
+      const pass = prompt('Admin-Passwort');
+      if (pass === null) return;
+      const b = btoa(user + ':' + pass);
+      sessionStorage.setItem('dbCreds', b);
+      alert('Anmeldedaten gesetzt (wird für DB-Aktionen verwendet)');
+    });
+
+    async function apiFetch(path, opts){
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      const auth = getAuthHeaders();
+      Object.assign(opts.headers, auth);
+      const res = await fetch(path, opts);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+
+    document.getElementById('btnDbStart').addEventListener('click', async ()=>{
+      try{ const r = await apiFetch('/db/start', { method: 'POST' }); document.getElementById('dbStatusText').textContent = 'Start: ' + JSON.stringify(r); } catch(e){ alert('Fehler: '+e.message); }
+    });
+    document.getElementById('btnDbStop').addEventListener('click', async ()=>{
+      try{ const r = await apiFetch('/db/stop', { method: 'POST' }); document.getElementById('dbStatusText').textContent = 'Stop: ' + JSON.stringify(r); } catch(e){ alert('Fehler: '+e.message); }
+    });
+    document.getElementById('btnDbInit').addEventListener('click', async ()=>{
+      try{ const r = await apiFetch('/db/init', { method: 'POST' }); document.getElementById('dbStatusText').textContent = 'Init: ' + JSON.stringify(r); loadEntries(); } catch(e){ alert('Fehler: '+e.message); }
+    });
+    document.getElementById('btnDbStatus').addEventListener('click', async ()=>{
+      try{ const r = await apiFetch('/db/status', { method: 'GET' }); document.getElementById('dbStatusText').textContent = 'Status: ' + JSON.stringify(r); } catch(e){ alert('Fehler: '+e.message); }
+    });
+
+    async function loadEntries(){
+      try{
+        const r = await apiFetch('/db/entries', { method: 'GET' });
+        const list = document.getElementById('entryList');
+        list.innerHTML = '';
+        (r.entries||[]).forEach(en => {
+          const row = document.createElement('div');
+          row.className = 'flex items-start justify-between bg-slate-850 p-2 rounded';
+          row.innerHTML = `<div><div class="font-medium">${en.title}</div><div class="text-xs text-slate-400">${new Date(en.created_at).toLocaleString()}</div><div class="text-sm text-slate-300">${en.body||''}</div></div><div class="ml-3"><button class="px-2 py-1 text-xs rounded-md bg-red-600 del-entry" data-id="${en.id}">Löschen</button></div>`;
+          list.appendChild(row);
+        });
+        document.querySelectorAll('.del-entry').forEach(b => b.addEventListener('click', async (e)=>{
+          const id = b.getAttribute('data-id');
+          if (!confirm('Wirklich löschen?')) return;
+          try{ await apiFetch('/db/entries/'+id, { method: 'DELETE' }); loadEntries(); } catch(err){ alert('Fehler: '+err.message); }
+        }));
+      } catch(e){ document.getElementById('entryList').innerText = 'Fehler beim Laden der Einträge: ' + e.message; }
+    }
+
+    document.getElementById('btnCreateEntry').addEventListener('click', async ()=>{
+      const title = document.getElementById('entryTitle').value.trim();
+      const body = document.getElementById('entryBody').value.trim();
+      if (!title) { alert('Titel benötigt'); return; }
+      try{ await apiFetch('/db/entries', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, body }) }); document.getElementById('entryTitle').value=''; document.getElementById('entryBody').value=''; loadEntries(); } catch(e){ alert('Fehler: '+e.message); }
+    });
+
+    document.getElementById('btnRefreshEntries').addEventListener('click', ()=> loadEntries());
+
+    // load entries on page load
+    loadEntries();
   </script>
 </body>
 </html>
