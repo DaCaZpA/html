@@ -2,6 +2,7 @@ const express = require('express');
 const { exec, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { Client } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +49,55 @@ function determineVbox(){
 }
 
 const VBOX = determineVbox();
+
+// Postgres connection defaults (used by /db endpoints)
+function getPgConfig(){
+	return {
+		host: process.env.PGHOST || '127.0.0.1',
+		port: Number(process.env.PGPORT || 5432),
+		user: process.env.PGUSER || 'admin',
+		password: process.env.PGPASSWORD || 'secret',
+		database: process.env.PGDATABASE || 'mydb',
+		connectionTimeoutMillis: 2000,
+	};
+}
+
+async function testDbConnection(){
+	const cfg = getPgConfig();
+	const client = new Client(cfg);
+	try {
+		await client.connect();
+		await client.query('SELECT 1');
+		await client.end();
+		return true;
+	} catch (e) {
+		try { await client.end(); } catch(_){}
+		return false;
+	}
+}
+
+async function initDb(){
+	const cfg = getPgConfig();
+	const client = new Client(cfg);
+	await client.connect();
+	// simple entries table
+	await client.query(`CREATE TABLE IF NOT EXISTS entries (
+		id SERIAL PRIMARY KEY,
+		title TEXT NOT NULL,
+		body TEXT,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+	)`);
+	await client.end();
+}
+
+async function queryDb(sql, params){
+	const cfg = getPgConfig();
+	const client = new Client(cfg);
+	await client.connect();
+	const res = await client.query(sql, params || []);
+	await client.end();
+	return res;
+}
 
 function writeVmList(){
 	try { fs.writeFileSync(path.join(__dirname, 'vms.json'), JSON.stringify(vmList, null, 2), 'utf8'); } catch(e){/*ignore*/}
@@ -135,6 +185,64 @@ app.get('/vm/status', (req, res) => {
 		};
 		res.json({ success:true, state, info, vrde });
 	});
+});
+
+// --- Database control endpoints (Postgres via docker-compose.db.yml) ---
+app.post('/db/start', (req, res) => {
+	const cmd = `docker compose -f docker-compose.db.yml up -d`;
+	exec(cmd, { windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
+		if (error) return res.status(500).json({ success:false, error: error.message, stdout, stderr });
+		res.json({ success:true, stdout:(stdout||'').trim(), stderr:(stderr||'').trim() });
+	});
+});
+
+app.post('/db/stop', (req, res) => {
+	const cmd = `docker compose -f docker-compose.db.yml down`;
+	exec(cmd, { windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
+		if (error) return res.status(500).json({ success:false, error: error.message, stdout, stderr });
+		res.json({ success:true, stdout:(stdout||'').trim(), stderr:(stderr||'').trim() });
+	});
+});
+
+app.get('/db/status', async (req, res) => {
+	try {
+		const ok = await testDbConnection();
+		res.json({ success:true, available: ok, config: getPgConfig() });
+	} catch (e) { res.status(500).json({ success:false, error: e.message }); }
+});
+
+// Initialize DB schema
+app.post('/db/init', async (req, res) => {
+	try {
+		await initDb();
+		res.json({ success:true });
+	} catch (e) { res.status(500).json({ success:false, error: e.message }); }
+});
+
+// CRUD: entries
+app.get('/db/entries', async (req, res) => {
+	try {
+		const r = await queryDb('SELECT id, title, body, created_at FROM entries ORDER BY created_at DESC');
+		res.json({ success:true, entries: r.rows });
+	} catch (e) { res.status(500).json({ success:false, error: e.message }); }
+});
+
+app.post('/db/entries', async (req, res) => {
+	const { title, body } = req.body || {};
+	if (!title) return res.status(400).json({ success:false, error: 'Missing title' });
+	try {
+		const r = await queryDb('INSERT INTO entries(title, body) VALUES($1,$2) RETURNING id, title, body, created_at', [title, body]);
+		res.json({ success:true, entry: r.rows[0] });
+	} catch (e) { res.status(500).json({ success:false, error: e.message }); }
+});
+
+app.delete('/db/entries/:id', async (req, res) => {
+	const id = Number(req.params.id);
+	if (!id) return res.status(400).json({ success:false, error: 'Invalid id' });
+	try {
+		await queryDb('DELETE FROM entries WHERE id=$1', [id]);
+		res.json({ success:true });
+	} catch (e) { res.status(500).json({ success:false, error: e.message }); }
 });
 
 const server = app.listen(PORT, '0.0.0.0', () => { console.log(`API server listening on port ${PORT}`); console.log(`Using VBoxManage: ${VBOX}`); });
